@@ -3,7 +3,7 @@ title: Hedonic
 emoji: 🌖
 colorFrom: yellow
 colorTo: gray
-sdk: static
+sdk: streamlit
 pinned: false
 short_description: Hedonic Analyzer
 ---
