@@ -10,6 +10,7 @@ import os
 import subprocess
 import re
 import warnings
+import textwrap
 
 # Suppress seaborn warnings for clean cloud execution
 warnings.filterwarnings('ignore')
@@ -138,12 +139,25 @@ st.markdown("""
             margin-top: -10px;
             margin-bottom: 25px;
         }
+        /* Stops the screen from vibrating by locking the scrollbars */
+        [data-testid="stAppViewContainer"] {
+            overflow-y: scroll !important;
+            overflow-x: hidden !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
 # Dynamic R setup
-LOCAL_R_PATH = "/home/eater/R/x86_64-pc-linux-gnu-library/4.2"
-R_LIB_CMD = f'.libPaths(c("{LOCAL_R_PATH}", .libPaths()))\n' if os.path.exists(LOCAL_R_PATH) else ''
+LOCAL_PATHS = [
+    "/home/eater/R/x86_64-pc-linux-gnu-library/4.2",   # Your local machine
+    "/home/appuser/R/x86_64-pc-linux-gnu-library/4.2", # Streamlit Cloud default
+    "/mount/src/R_libs"                                # Alternative repo-level R library
+]
+R_LIB_CMD = ''
+for p in LOCAL_PATHS:
+    if os.path.exists(p):
+        R_LIB_CMD = f'.libPaths(c("{p}", .libPaths()))\n'
+        break
 
 # ==========================================
 # HELPER FUNCTIONS
@@ -164,9 +178,13 @@ def extract_attr_name(col_str):
     clean = re.sub(r'\.\d+$', '', clean).strip()
     return clean
 
-def truncate_name(name, max_len=15):
+def truncate_name(name, max_width=18, absolute_max=75):
+    """Wraps long names into multiple lines instead of deleting characters."""
     name_str = str(name)
-    return name_str[:max_len] + '...' if len(name_str) > max_len else name_str
+    if len(name_str) > absolute_max:
+        half = (absolute_max - 3) // 2
+        name_str = f"{name_str[:half]}...{name_str[-half:]}"
+    return textwrap.fill(name_str, width=max_width)
 
 # ==========================================
 # APPLICATION HEADER
@@ -509,12 +527,10 @@ if uploaded_file is not None:
                 options(warn=-1)
                 {R_LIB_CMD}
                 
-                # 1. Create a writable directory on the cloud server
                 local_lib <- Sys.getenv("R_LIBS_USER")
                 dir.create(local_lib, recursive = TRUE, showWarnings = FALSE)
                 .libPaths(c(local_lib, .libPaths()))
 
-                # 2. Quietly auto-install PMCMRplus if it is missing
                 if (!require("PMCMRplus", character.only = TRUE, quietly = TRUE)) {{
                     install.packages("PMCMRplus", repos="https://cloud.r-project.org/", lib=local_lib, quiet=TRUE)
                     library(PMCMRplus, lib.loc=local_lib)
@@ -535,7 +551,6 @@ if uploaded_file is not None:
                 """
                 with open("run_sm.R", "w") as f: f.write(r_sm_script)
                 
-                # Bumping the timeout to 300 seconds (5 minutes) so the cloud server has time to download and compile the package the first time
                 result = subprocess.run(["Rscript", "run_sm.R"], capture_output=True, text=True, check=True, timeout=300)
                 
                 if os.path.exists("temp_sm_pval.txt"):
@@ -549,7 +564,7 @@ if uploaded_file is not None:
                         err_text = f.read().strip()
                         if err_text:
                             used_fallback = True
-                            r_error_msg = f"R Caught Error: {err_text}\\n\\nSTDOUT:\\n{result.stdout}\\n\\nSTDERR:\\n{result.stderr}"
+                            r_error_msg = f"R Caught Error: {err_text}\n\nSTDOUT:\n{result.stdout}\n\nSTDERR:\n{result.stderr}"
 
             except subprocess.CalledProcessError as e:
                 used_fallback = True
@@ -583,6 +598,38 @@ if uploaded_file is not None:
             correction = raw_ranks.mean() - final_rank_df['Adjusted preference score'].mean()
             final_rank_df['Adjusted preference score'] = final_rank_df['Adjusted preference score'] + correction
             final_rank_df = final_rank_df.sort_values(by='Adjusted preference score', ascending=False).reset_index(drop=True)
+
+            # --- CALCULATE NON-PARAMETRIC RANK TIERS ---
+            pw_tests_rank = model_rank.t_test_pairwise('C(Product)').result_frame.reset_index()
+            pw_tests_rank = pw_tests_rank.rename(columns={'index': 'Comparison', 'P>|t|': 'p-value', 'pvalue': 'p-value'})
+            
+            sig_dict_rank = {}
+            for _, row in pw_tests_rank.iterrows():
+                is_sig = (pd.to_numeric(row['p-value'], errors='coerce') < 0.05)
+                sig_dict_rank[str(row['Comparison'])] = is_sig
+
+            def is_tied_rank(b1, b2):
+                if b1 == b2: return True
+                match1, match2 = f"{b1}-{b2}", f"{b2}-{b1}"
+                for comp_str, is_sig in sig_dict_rank.items():
+                    if comp_str == match1 or comp_str == match2: return not is_sig
+                for comp_str, is_sig in sig_dict_rank.items():
+                    if b1 in comp_str and b2 in comp_str: return not is_sig
+                return True
+
+            sorted_rank_prods = final_rank_df['Product'].tolist()
+            rank_tiers = {p: "" for p in sorted_rank_prods}
+            current_rank_tier = 'A'
+            for i in range(len(sorted_rank_prods)):
+                anchor = sorted_rank_prods[i]
+                if rank_tiers[anchor] == "":
+                    rank_tiers[anchor] += current_rank_tier
+                    for j in range(i+1, len(sorted_rank_prods)):
+                        compare_prod = sorted_rank_prods[j]
+                        if is_tied_rank(anchor, compare_prod):
+                            rank_tiers[compare_prod] += current_rank_tier
+                    current_rank_tier = chr(ord(current_rank_tier) + 1)
+            final_rank_df['Tier'] = final_rank_df['Product'].map(rank_tiers)
 
         # ==========================================
         # STEP 5: VISUAL RENDERERS
@@ -621,6 +668,9 @@ if uploaded_file is not None:
                 fig_rank, ax_rank = plt.subplots(figsize=(8, 6))
                 sns.barplot(data=final_rank_df, x='Product_Label', y='Adjusted preference score', palette='Purples_r', edgecolor='.2', ax=ax_rank)
                 
+                for i, row in final_rank_df.iterrows():
+                    ax_rank.text(i, row['Adjusted preference score'] + 0.1, row['Tier'], ha='center', va='bottom', fontweight='bold', fontsize=12)
+                
                 ax_rank.set_ylabel("Adjusted preference points")
                 ax_rank.set_xlabel("")
                 max_score = final_rank_df['Adjusted preference score'].max()
@@ -630,7 +680,7 @@ if uploaded_file is not None:
                 fig_rank.tight_layout()
                 st.pyplot(fig_rank)
                 
-                st.dataframe(final_rank_df[['Product', 'Adjusted preference score']].round(2), hide_index=True, width="stretch")
+                st.dataframe(final_rank_df[['Product', 'Tier', 'Adjusted preference score']].round(2), hide_index=True, width="stretch")
                 
                 test_name = "Conover-Iman (Fallback)" if used_fallback else "Skillings-Mack (R)"
                 st.caption(f"Engine used: {test_name}")
