@@ -659,6 +659,8 @@ if uploaded_file is not None:
                 fig_anova.tight_layout()
                 st.pyplot(fig_anova)
                 
+                st.markdown(f"<div style='text-align: center; color: #777; font-size: 0.95rem; margin-top: 10px; margin-bottom: 20px;'>ANOVA p-value: {product_pval:.5f} {('(Significant)' if product_pval < 0.05 else '(Not Significant)')}</div>", unsafe_allow_html=True)
+                
                 st.dataframe(adj_df[['Product', 'Tier', 'Adjusted score']].round(2), hide_index=True, width="stretch")
 
             with col_chart2:
@@ -679,6 +681,14 @@ if uploaded_file is not None:
                 sns.despine()
                 fig_rank.tight_layout()
                 st.pyplot(fig_rank)
+
+                if sm_pval is not None:
+                    if used_fallback:
+                        st.markdown(f"<div style='text-align: center; color: #777; font-size: 0.95rem; margin-top: 10px; margin-bottom: 2px;'>Conover-Iman p-value*: {sm_pval:.5f} {('(Significant)' if sm_pval < 0.05 else '(Not Significant)')}</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='text-align: center; color: #999; font-size: 0.8rem; margin-bottom: 20px;'>*R framework unavailable. Falling back to Conover approximation.</div>", unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"<div style='text-align: center; color: #777; font-size: 0.95rem; margin-top: 10px; margin-bottom: 20px;'>Skillings-Mack p-value: {sm_pval:.5f} {('(Significant)' if sm_pval < 0.05 else '(Not Significant)')}</div>", unsafe_allow_html=True)
+                
                 
                 st.dataframe(final_rank_df[['Product', 'Tier', 'Adjusted preference score']].round(2), hide_index=True, width="stretch")
                 
