@@ -94,7 +94,7 @@ UI_TEXT = {
     "action_standard_fail": "Because this falls short of the required {threshold:.2f} threshold, the difference between the top products is likely not meaningful.",
     
     # Charts & Tables
-    "chart_anova_title": "ANOVA" (adjusted means),
+    "chart_anova_title": "ANOVA" (adjusted means)",
     "chart_rank_title": "Rank test (preference points)",
     "chart_polar_title": "Score distribution (polarization)",
     "chart_polar_desc": "This chart visualizes panel alignment. A tight cluster indicates universal agreement. A wide, stretched spread indicates a highly polarizing product.",
