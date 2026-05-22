@@ -72,7 +72,7 @@ UI_TEXT = {
     "err_anova_fail": "Analysis failed during execution. Please verify your data formatting. Error details: {e}",
     
     # Step 5: Executive Summary
-    "summary_header": "Executive summary",
+    "summary_header": "",
     "win_sig_title": "Significant difference detected",
     "win_sig_desc": "The panel concluded that <strong>{winners}</strong> is the top-performing product.",
     "win_tie_title": "Statistical tie",
@@ -82,20 +82,20 @@ UI_TEXT = {
     
     # Metrics
     "stat_rse_label": "Residual Standard Error (RSE): {rse:.2f}",
-    "stat_rse_context": "Context: Lab panels are typically < 1.0; standard consumer tests are 1.0 - 1.8. The RSE represents the standard deviation of the data after mathematically removing true product differences and individual taster bias. A higher RSE indicates a highly unpredictable panel.",
+    "stat_rse_context": "Trained panels are typically < 1.0; standard consumer tests are 1.0 - 1.8. The RSE represents the standard deviation of the data after mathematically removing true product differences and individual taster bias. A higher RSE indicates a highly unpredictable panel.",
     "stat_pval_label": "Parametric p-value (ANOVA): {pval:.4f}",
-    "stat_pval_context": "Context: The ANOVA p-value represents the statistical probability that the observed differences in average scores are due strictly to random chance. A value below 0.05 is typically required to prove a significant difference.",
+    "stat_pval_context": "The ANOVA p-value represents the statistical probability that the observed differences in average scores are due strictly to random chance. A value below 0.05 is typically required to prove a significant difference.",
     "stat_rank_pval_label": "Nonparametric p-value ({test}): {pval:.4f}",
-    "stat_rank_pval_context": "Context: The nonparametric p-value evaluates preference rankings rather than raw scores, making it mathematically robust against panelist scale-use bias.",
+    "stat_rank_pval_context": "The nonparametric p-value evaluates preference rankings rather than raw scores, making it mathematically robust against panelist scale-use bias.",
     
     "action_standard_title": "Detectable difference threshold: {threshold:.2f} points",
     "action_standard_gap": "<strong>{top}</strong> beat <strong>{runner}</strong> by a margin of <strong>{gap:.2f} points</strong>.",
-    "action_standard_pass": "Because this exceeds the required {threshold:.2f} threshold, consumers are likely to notice the difference in quality.",
-    "action_standard_fail": "Because this falls short of the required {threshold:.2f} threshold, consumers are unlikely to notice a meaningful difference between the top two products.",
+    "action_standard_pass": "Because this exceeds the required {threshold:.2f} threshold, the difference in quality is likely meaningful.",
+    "action_standard_fail": "Because this falls short of the required {threshold:.2f} threshold, the difference between the top products is likely not meaningful.",
     
     # Charts & Tables
-    "chart_anova_title": "Parametric ANOVA (adjusted means)",
-    "chart_rank_title": "Nonparametric rank test (preference points)",
+    "chart_anova_title": "ANOVA" (adjusted means),
+    "chart_rank_title": "Rank test (preference points)",
     "chart_polar_title": "Score distribution (polarization)",
     "chart_polar_desc": "This chart visualizes panel alignment. A tight cluster indicates universal agreement. A wide, stretched spread indicates a highly polarizing product.",
     "chart_attr_title": "Descriptive attribute summary",
@@ -103,7 +103,7 @@ UI_TEXT = {
     
     # Correlation Strings
     "chart_corr_title": "Key driver analysis (correlation)",
-    "chart_corr_desc": "This section evaluates how strongly each descriptive attribute influenced the tasters' overall scores. Spearman's rank correlation (ρ) is used, meaning scores closer to 1.0 indicate a very strong positive driver.",
+    "chart_corr_desc": "This section evaluates how strongly each descriptive attribute influenced the tasters' overall scores. Spearman's rank correlation (ρ) is used, meaning scores closer to 1.0 indicate a very strong positive driver, and negative scores indicate a negative driver.",
 
     "export_header": "Data export",
     "btn_export": "Download processed matrix (CSV)"
@@ -702,7 +702,7 @@ if uploaded_file is not None:
 
         def render_summary_and_threshold():
             st.divider()
-            st.header(UI_TEXT["summary_header"])
+            # st.header(UI_TEXT["summary_header"])
             
             if product_pval < 0.05:
                 top_tier_products = [p for p, t in tiers.items() if 'A' in t]
@@ -869,7 +869,7 @@ if uploaded_file is not None:
         # ----------------------------------------------------
         # DASHBOARD LAYOUT (Reorder these lines to change the app!)
         # ----------------------------------------------------
-        st.header("Results Dashboard")
+        st.header("Results ")
         
         render_leaderboards()
         render_summary_and_threshold()
