@@ -35,9 +35,9 @@ SURVEY_PREFIXES = {
 # USER-FACING TEXT STRINGS (EDIT THESE)
 # ==========================================
 UI_TEXT = {
-    "app_title": "Sensory analysis tool",
-    "app_subtitle": "Upload raw survey data or a previously processed matrix to generate statistical leaderboards.",
-    "err_missing_lib": "Missing required python library: statsmodels. Please add it to your requirements.txt file.",
+    "app_title": "Sensory data analyzer",
+    "app_subtitle": "Upload raw survey data or a previously processed matrix.",
+    "err_missing_lib": "Missing required python library: statsmodels.",
     
     # Step 1: Upload
     "step1_header": "1. Data upload",
@@ -47,29 +47,29 @@ UI_TEXT = {
     
     # Step 2: Configuration
     "step2_header": "2. Survey configuration",
-    "inference_msg": "Based on your column headers, we detected **{servings}** samples per taster. We also auto-detected your descriptive attributes. Review and adjust below if necessary.",
+    "inference_msg": "Based on column headers, **{servings}** samples were detected per taster. Descriptive attributes also auto-detected. Review and adjust below if necessary.",
     "label_taster_id": "Taster ID column name",
     "label_servings": "Samples per taster",
-    "label_attributes": "Descriptive attributes (comma-separated)",
+    "label_attributes": "Descriptive attribute names (comma-separated)",
     "label_mapping_expander": "Review column mappings (advanced)",
     
     # Step 3: Product Mapping
     "step3_header": "3. Product mapping",
-    "step3_desc": "We extracted the unique codes from your survey based on your column selections. Upload a master key to automatically assign product names, or manually type them into the grid.",
+    "step3_desc": "Unique codes extracted from survey based on column selections. Upload a master key to automatically assign product names, or manually type them into the grid.",
     "step3_upload_key": "Upload master key (CSV - optional)",
     "msg_key_success": "Perfect match: successfully linked all {count} survey codes to product names.",
-    "msg_key_partial": "Partial match: found {matched} matches, but {missing} survey codes are missing from your key.",
-    "msg_key_mismatch": "Master key mismatch: we loaded {loaded} names from your key, but none of them match the codes found in your survey data. Please check your file.",
-    "err_key_cols": "Could not identify the code and name columns in your master key.",
+    "msg_key_partial": "Partial match: found {matched} matches, but {missing} survey codes are missing from key.",
+    "msg_key_mismatch": "Master key mismatch: loaded {loaded} names from key, but none of them match the codes found in survey data. Please check key file.",
+    "err_key_cols": "Could not identify the code and name columns in master key.",
     "step3_edit_desc": "Verify and edit product names:",
     "step3_edit_hint": "This table is interactive. Click directly into the 'Product name' column to manually type or edit a brand name.",
     
     # Step 4: Analysis Execution & Errors
     "btn_run": "Run statistical analysis",
     "spinner_running": "Stacking data and calculating statistics...",
-    "err_no_numbers": "Analysis failed: The overall liking column contains no valid numbers. Please apply a numerical mapping to your raw data before uploading.",
+    "err_no_numbers": "Analysis failed: The overall liking column contains no valid numbers. Please apply a numerical mapping to the raw data before uploading.",
     "err_no_variance": "Analysis failed: All recorded scores are exactly identical (zero variance). Statistical analysis cannot be performed without variance.",
-    "err_anova_fail": "Analysis failed during execution. Please verify your data formatting. Error details: {e}",
+    "err_anova_fail": "Analysis failed during execution. Please verify data formatting. Error details: {e}",
     
     # Step 5: Executive Summary
     "summary_header": "",
@@ -103,10 +103,13 @@ UI_TEXT = {
     
     # Correlation Strings
     "chart_corr_title": "Key driver analysis (correlation)",
-    "chart_corr_desc": "This section evaluates how strongly each descriptive attribute influenced the tasters' overall scores. Spearman's rank correlation (ρ) is used, meaning scores closer to 1.0 indicate a very strong positive driver, and negative scores indicate a negative driver.",
+    "chart_corr_desc": "This section evaluates how strongly each descriptive attribute influenced the tasters' overall scores. Spearman's rank correlation (ρ) is used, meaning scores closer to 1.0 indicate a positive driver, and negative scores indicate a negative driver.",
 
+    # Export strings
     "export_header": "Data export",
-    "btn_export": "Download processed matrix (CSV)"
+    "export_header_qual": "Qualitative comments",
+    "btn_export_num": "Download numeric matrix (CSV)",
+    "btn_export_com": "Download comments (CSV)"
 }
 
 # ==========================================
@@ -225,7 +228,12 @@ if uploaded_file is not None:
         o_col = cols[cols_lower.index('overall liking')]
         
         df_long = df_raw.rename(columns={t_col: 'Taster', p_col: 'Product', o_col: 'Overall liking'})
-        attr_names = [c for c in df_long.columns if c not in ['Taster', 'Product', 'Overall liking']]
+        
+        # Don't mistake comment fields for numeric attributes
+        ignore_cols = ['Taster', 'Product', 'Overall liking']
+        comment_candidates = [c for c in df_long.columns if 'comment' in c.lower() or 'feedback' in c.lower()]
+        ignore_cols.extend(comment_candidates)
+        attr_names = [c for c in df_long.columns if c not in ignore_cols]
         
         run_analysis = st.button(UI_TEXT["btn_run"], type="primary", width="stretch")
 
@@ -240,19 +248,29 @@ if uploaded_file is not None:
         
         code_cols = []
         overall_cols = []
+        comment_cols = []
+        
+        comment_keywords = ['describe', 'descriptive', 'comment', 'thoughts', 'why', 'additional', 'specific', 'explain', 'feedback']
         
         for c in cols:
             c_str = str(c).strip()
+            c_lower = c_str.lower()
+            
+            # Detect Comments First
+            if any(k in c_lower for k in comment_keywords):
+                comment_cols.append(c)
+                continue
+                
             if c_str.upper().startswith(SURVEY_PREFIXES["code"].upper()):
                 code_cols.append(c)
             elif c_str.upper().startswith(SURVEY_PREFIXES["overall"].upper()):
                 overall_cols.append(c)
                 
+        # Fallback detection if prefixes aren't strictly used
         if not code_cols:
             for c in cols:
                 c_lower = str(c).lower()
-                if any(bad in c_lower for bad in ['describe', 'descriptive', 'comment', 'thoughts', 'why', 'additional', 'specific', 'explain']):
-                    continue
+                if c in comment_cols: continue
                 if 'code' in c_lower and 'zip' not in c_lower:
                     code_cols.append(c)
                 elif 'sample' in c_lower and not any(w in c_lower for w in ['overall', 'like', 'rate', 'taste']):
@@ -261,8 +279,7 @@ if uploaded_file is not None:
         if not overall_cols:
             for c in cols:
                 c_lower = str(c).lower()
-                if any(bad in c_lower for bad in ['describe', 'descriptive', 'comment', 'thoughts', 'why', 'additional', 'specific', 'explain']):
-                    continue
+                if c in comment_cols: continue
                 if 'overall' in c_lower:
                     overall_cols.append(c)
                     
@@ -277,7 +294,7 @@ if uploaded_file is not None:
             
             block_cols = cols[start_idx+1 : end_idx]
             
-            prefix_attrs = [c for c in block_cols if re.match(SURVEY_PREFIXES["attr_regex"], str(c), re.IGNORECASE)]
+            prefix_attrs = [c for c in block_cols if re.match(SURVEY_PREFIXES["attr_regex"], str(c), re.IGNORECASE) and c not in comment_cols]
             if prefix_attrs:
                 for c in prefix_attrs:
                     clean_name = extract_attr_name(c).capitalize()
@@ -285,9 +302,9 @@ if uploaded_file is not None:
                         inferred_attrs.append(clean_name)
             else:
                 for c in block_cols:
-                    if c in overall_cols: continue
+                    if c in overall_cols or c in comment_cols: continue
                     c_lower = str(c).lower()
-                    if not any(bad in c_lower for bad in ['describe', 'descriptive', 'comment', 'thoughts', 'why', 'additional', 'photo', 'upload', 'specific', 'code', 'sample', 'explain']):
+                    if not any(bad in c_lower for bad in ['photo', 'upload', 'code', 'sample']):
                         clean_c = re.sub(r'\.\d+$', '', str(c))
                         clean_c = re.sub(r'[^a-zA-Z\s]', '', clean_c).strip()
                         words = clean_c.split()
@@ -330,7 +347,14 @@ if uploaded_file is not None:
                         o_col_in_block = [c for c in block_cols if c in overall_cols]
                         o_idx = cols.index(o_col_in_block[0]) if o_col_in_block else min(c_idx + 1, len(cols)-1)
                         overall_c = st.selectbox("Overall liking", cols, index=o_idx, format_func=format_col_name, key=f"moverall_{i}")
-                    
+                        
+                        comment_c_in_block = [c for c in block_cols if c in comment_cols]
+                        detected_comment = comment_c_in_block[0] if comment_c_in_block else "None (No comments)"
+                        comment_options = ["None (No comments)"] + cols
+                        comment_idx = comment_options.index(detected_comment) if detected_comment in comment_options else 0
+                        
+                        comment_c = st.selectbox("Written Comments / Feedback", comment_options, index=comment_idx, format_func=lambda x: format_col_name(x) if x != "None (No comments)" else x, key=f"mcomment_{i}")
+
                     attr_c = []
                     with c2:
                         for a, name in enumerate(attr_names):
@@ -345,7 +369,12 @@ if uploaded_file is not None:
                                     
                             attr_c.append(st.selectbox(f"{truncate_name(name, 25)} score", cols, index=best_match_idx, format_func=format_col_name, key=f"mattr_{i}_{a}"))
                     
-                    serving_mappings.append({"code": code_c, "overall": overall_c, "attrs": attr_c})
+                    serving_mappings.append({
+                        "code": code_c, 
+                        "overall": overall_c, 
+                        "comment": comment_c, 
+                        "attrs": attr_c
+                    })
 
         # ==========================================
         # STEP 3: PRODUCT MAPPING
@@ -420,8 +449,12 @@ if uploaded_file is not None:
     if run_analysis:
         with st.spinner(UI_TEXT["spinner_running"]):
             
+            df_comments = pd.DataFrame()
+            
             if not is_processed_matrix:
-                stacked_rows = []
+                stacked_numeric_rows = []
+                stacked_comment_rows = []
+                
                 for idx, row in df_raw.iterrows():
                     t_id = str(row[taster_col])
                     for s_idx in range(servings):
@@ -434,13 +467,36 @@ if uploaded_file is not None:
                         if not prod_name:
                             prod_name = "Unknown"
                             
-                        new_row = {"Taster": t_id, "Product": prod_name, "Overall liking": overall_score}
+                        # Build Numeric Row
+                        new_num_row = {"Taster": t_id, "Product": prod_name, "Overall liking": overall_score}
                         for a_idx, attr_col in enumerate(mapping["attrs"]):
                             if a_idx < len(attr_names):
-                                new_row[attr_names[a_idx]] = row[attr_col]
-                        stacked_rows.append(new_row)
+                                new_num_row[attr_names[a_idx]] = row[attr_col]
+                        stacked_numeric_rows.append(new_num_row)
                         
-                df_long = pd.DataFrame(stacked_rows)
+                        # Build Comment Row (If applicable)
+                        if mapping["comment"] != "None (No comments)":
+                            comment_text = row[mapping["comment"]]
+                            if pd.notna(comment_text) and str(comment_text).strip() != "":
+                                stacked_comment_rows.append({
+                                    "Taster": t_id,
+                                    "Product": prod_name,
+                                    "Overall Liking": overall_score,
+                                    "Comments": str(comment_text).strip()
+                                })
+                        
+                df_long = pd.DataFrame(stacked_numeric_rows)
+                
+                if stacked_comment_rows:
+                    df_comments = pd.DataFrame(stacked_comment_rows)
+                    df_comments = df_comments.sort_values(by="Product").reset_index(drop=True)
+            else:
+                # If they uploaded a processed matrix, try to extract comments if they exist
+                possible_comment_cols = [c for c in df_long.columns if 'comment' in c.lower() or 'feedback' in c.lower()]
+                if possible_comment_cols:
+                    comment_col = possible_comment_cols[0]
+                    df_comments = df_long[['Taster', 'Product', 'Overall liking', comment_col]].dropna(subset=[comment_col])
+                    df_comments = df_comments.rename(columns={comment_col: 'Comments'})
             
             df_long['Overall liking'] = pd.to_numeric(df_long['Overall liking'], errors='coerce')
             df_long = df_long.dropna(subset=["Product", "Overall liking"])
@@ -631,9 +687,44 @@ if uploaded_file is not None:
                     current_rank_tier = chr(ord(current_rank_tier) + 1)
             final_rank_df['Tier'] = final_rank_df['Product'].map(rank_tiers)
 
-        # ==========================================
-        # STEP 5: VISUAL RENDERERS
-        # ==========================================
+            # ==========================================
+            # SAVE TO SESSION STATE TO PREVENT TOGGLE BUG
+            # ==========================================
+            st.session_state.lite_results = {
+                'df_long': df_long,
+                'df_comments': df_comments,
+                'adj_df': adj_df,
+                'final_rank_df': final_rank_df,
+                'product_pval': product_pval,
+                'residual_std': residual_std,
+                'action_standard': action_standard,
+                'tiers': tiers,
+                'sm_pval': sm_pval,
+                'used_fallback': used_fallback,
+                'r_error_msg': r_error_msg,
+                'products': products,
+                'attr_names': attr_names
+            }
+
+    # ==========================================
+    # STEP 5: VISUAL RENDERERS
+    # ==========================================
+    if 'lite_results' in st.session_state:
+        # Unpack variables from memory so toggles work perfectly
+        res = st.session_state.lite_results
+        df_long = res['df_long']
+        df_comments = res['df_comments']
+        adj_df = res['adj_df']
+        final_rank_df = res['final_rank_df']
+        product_pval = res['product_pval']
+        residual_std = res['residual_std']
+        action_standard = res['action_standard']
+        tiers = res['tiers']
+        sm_pval = res['sm_pval']
+        used_fallback = res['used_fallback']
+        r_error_msg = res['r_error_msg']
+        products = res['products']
+        attr_names = res['attr_names']
         
         def render_leaderboards():
             st.divider()
@@ -659,8 +750,6 @@ if uploaded_file is not None:
                 fig_anova.tight_layout()
                 st.pyplot(fig_anova)
                 
-                st.markdown(f"<div style='text-align: center; color: #777; font-size: 0.95rem; margin-top: 10px; margin-bottom: 20px;'>ANOVA p-value: {product_pval:.5f} {('(Significant)' if product_pval < 0.05 else '(Not Significant)')}</div>", unsafe_allow_html=True)
-                
                 st.dataframe(adj_df[['Product', 'Tier', 'Adjusted score']].round(2), hide_index=True, width="stretch")
 
             with col_chart2:
@@ -681,28 +770,88 @@ if uploaded_file is not None:
                 sns.despine()
                 fig_rank.tight_layout()
                 st.pyplot(fig_rank)
-
-                if sm_pval is not None:
-                    if used_fallback:
-                        st.markdown(f"<div style='text-align: center; color: #777; font-size: 0.95rem; margin-top: 10px; margin-bottom: 2px;'>Conover-Iman p-value*: {sm_pval:.5f} {('(Significant)' if sm_pval < 0.05 else '(Not Significant)')}</div>", unsafe_allow_html=True)
-                        st.markdown(f"<div style='text-align: center; color: #999; font-size: 0.8rem; margin-bottom: 20px;'>*R framework unavailable. Falling back to Conover approximation.</div>", unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"<div style='text-align: center; color: #777; font-size: 0.95rem; margin-top: 10px; margin-bottom: 20px;'>Skillings-Mack p-value: {sm_pval:.5f} {('(Significant)' if sm_pval < 0.05 else '(Not Significant)')}</div>", unsafe_allow_html=True)
-                
-                
                 st.dataframe(final_rank_df[['Product', 'Tier', 'Adjusted preference score']].round(2), hide_index=True, width="stretch")
-                
                 test_name = "Conover-Iman (Fallback)" if used_fallback else "Skillings-Mack (R)"
                 st.caption(f"Engine used: {test_name}")
                 
-            # Expose R error if fallback was triggered to help with cloud debugging
             if used_fallback and r_error_msg:
                 with st.expander("View R Debugging Logs"):
                     st.code(r_error_msg, language='plaintext')
 
+        def render_simple_metrics():
+            st.divider()
+            show_simple = st.toggle("View Simple Metrics (Mean-Centered Scores & Average Ranks)", value=False)
+            
+            if show_simple:
+                st.subheader("Simple Metrics")
+                st.markdown("These metrics bypass complex statistical regression. **Centered Averages** mathematically adjust for tasters who score unusually high or low, re-centering them to the panel average. **Average Ranks** ignore the 1-to-9 scale entirely, looking only at the order in which each taster preferred the products (where 1.0 is a unanimous first place).")
+                
+                global_mean = df_long['Overall liking'].mean()
+                df_calc = df_long.copy()
+                
+                df_calc['Taster_Mean'] = df_calc.groupby('Taster')['Overall liking'].transform('mean')
+                df_calc['Centered_Score'] = df_calc['Overall liking'] - df_calc['Taster_Mean'] + global_mean
+                
+                df_calc['Rank'] = df_calc.groupby('Taster')['Overall liking'].rank(ascending=False, method='average')
+                
+                raw_m = df_calc.groupby('Product')['Overall liking'].mean()
+                cent_m = df_calc.groupby('Product')['Centered_Score'].mean()
+                rank_m = df_calc.groupby('Product')['Rank'].mean()
+                
+                simple_df = pd.DataFrame({
+                    'Product': raw_m.index,
+                    'Raw Average': raw_m.values,
+                    'Centered Average': cent_m.values,
+                    'Average Rank': rank_m.values
+                })
+                
+                simple_df = simple_df.set_index('Product').reindex(adj_df['Product'].tolist()).reset_index()
+                simple_df['Product_Label'] = simple_df['Product'].apply(truncate_name)
+                
+                col_cent, col_rank = st.columns(2)
+                
+                with col_cent:
+                    fig_c, ax_c = plt.subplots(figsize=(8, 5))
+                    sns.barplot(data=simple_df, x='Product_Label', y='Centered Average', palette='Blues_r', edgecolor='.2', ax=ax_c)
+                    
+                    for i, row in simple_df.iterrows():
+                        ax_c.text(i, row['Centered Average'] + 0.1, f"{row['Centered Average']:.2f}", ha='center', va='bottom', fontweight='bold', fontsize=11)
+                        
+                    ax_c.set_ylabel("Centered Average Score")
+                    ax_c.set_xlabel("")
+                    ax_c.set_ylim(1, 9.5)
+                    plt.setp(ax_c.get_xticklabels(), rotation=45, ha='right')
+                    sns.despine()
+                    fig_c.tight_layout()
+                    st.pyplot(fig_c)
+                    
+                    st.dataframe(simple_df[['Product', 'Raw Average', 'Centered Average']].round(2), hide_index=True, width="stretch")
+                    
+                with col_rank:
+                    fig_r, ax_r = plt.subplots(figsize=(8, 5))
+                    sns.barplot(data=simple_df, x='Product_Label', y='Average Rank', palette='Purples_r', edgecolor='.2', ax=ax_r)
+                    
+                    for i, row in simple_df.iterrows():
+                        ax_r.text(i, row['Average Rank'] + 0.15, f"{row['Average Rank']:.2f}", ha='center', va='top', fontweight='bold', fontsize=11, color='black')
+                        
+                    ax_r.set_ylabel("Average Rank (Lower is Better)")
+                    ax_r.set_xlabel("")
+                    
+                    max_rank = simple_df['Average Rank'].max()
+                    ax_r.set_ylim(max_rank + 0.5, 0.5)
+                    plt.setp(ax_r.get_xticklabels(), rotation=45, ha='right')
+                    sns.despine()
+                    fig_r.tight_layout()
+                    st.pyplot(fig_r)
+                    
+                    st.dataframe(simple_df[['Product', 'Average Rank']].round(2), hide_index=True, width="stretch")
+
         def render_summary_and_threshold():
             st.divider()
-            # st.header(UI_TEXT["summary_header"])
+            
+            # The summary_header logic was preserved from your file
+            if UI_TEXT["summary_header"]:
+                st.header(UI_TEXT["summary_header"])
             
             if product_pval < 0.05:
                 top_tier_products = [p for p, t in tiers.items() if 'A' in t]
@@ -867,11 +1016,12 @@ if uploaded_file is not None:
                     st.pyplot(fig_corr)
 
         # ----------------------------------------------------
-        # DASHBOARD LAYOUT (Reorder these lines to change the app!)
+        # DASHBOARD LAYOUT
         # ----------------------------------------------------
-        st.header("Results ")
+        st.header("Results Dashboard")
         
         render_leaderboards()
+        render_simple_metrics()
         render_summary_and_threshold()
         render_pvalues_and_rse()
         render_polarization()
@@ -881,5 +1031,13 @@ if uploaded_file is not None:
         # Data export section
         st.divider()
         st.subheader(UI_TEXT["export_header"])
-        csv_export = df_long.to_csv(index=False)
-        st.download_button(UI_TEXT["btn_export"], data=csv_export, file_name="processed_sensory_matrix.csv", mime="text/csv")
+        csv_export_num = df_long.to_csv(index=False)
+        st.download_button(UI_TEXT["btn_export_num"], data=csv_export_num, file_name="processed_sensory_matrix.csv", mime="text/csv")
+
+        # Qualitative Export Section
+        if not df_comments.empty:
+            st.divider()
+            st.subheader(UI_TEXT["export_header_qual"])
+            st.dataframe(df_comments.head(5), hide_index=True)
+            csv_export_com = df_comments.to_csv(index=False)
+            st.download_button(UI_TEXT["btn_export_com"], data=csv_export_com, file_name="master_comments_matrix.csv", mime="text/csv")
