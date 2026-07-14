@@ -35,7 +35,7 @@ SURVEY_PREFIXES = {
 # USER-FACING TEXT STRINGS (EDIT THESE)
 # ==========================================
 UI_TEXT = {
-    "app_title": "Hedonic Analyzer",
+    "app_title": "Hedonic Survey Analyzer",
     "app_subtitle": "Upload raw survey data or a previously processed matrix.",
     "err_missing_lib": "Missing required Python library: statsmodels.",
     
@@ -143,9 +143,17 @@ st.markdown("""
             margin-bottom: 25px;
         }
         /* Stops the screen from vibrating by locking the scrollbars */
+        html, body {
+            max-width: 100%;
+            overflow-x: hidden !important;
+        }
         [data-testid="stAppViewContainer"] {
             overflow-y: scroll !important;
             overflow-x: hidden !important;
+            width: 100% !important;
+        }
+        [data-testid="stHeader"] {
+            width: 100% !important;
         }
     </style>
 """, unsafe_allow_html=True)
