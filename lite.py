@@ -929,39 +929,39 @@ if uploaded_file is not None:
                 st.markdown(f"**{UI_TEXT['stat_rse_label'].format(rse=residual_std)}**")
                 st.markdown(f"<div class='stat-context'>{UI_TEXT['stat_rse_context']}</div>", unsafe_allow_html=True)
 
-        def render_polarization():
-            st.divider()
-            st.subheader(UI_TEXT["chart_polar_title"])
-            st.write(UI_TEXT["chart_polar_desc"])
+        # def render_polarization():
+        #     st.divider()
+        #     st.subheader(UI_TEXT["chart_polar_title"])
+        #     st.write(UI_TEXT["chart_polar_desc"])
             
-            global_mean = df_long['Overall liking'].mean()
-            global_std = df_long['Overall liking'].std()
+        #     global_mean = df_long['Overall liking'].mean()
+        #     global_std = df_long['Overall liking'].std()
             
-            def standardize_and_scale(group):
-                std = group.std(ddof=0)
-                z = (group - group.mean()) / std if std > 0 else group - group.mean()
-                return (z * global_std) + global_mean
+        #     def standardize_and_scale(group):
+        #         std = group.std(ddof=0)
+        #         z = (group - group.mean()) / std if std > 0 else group - group.mean()
+        #         return (z * global_std) + global_mean
                 
-            df_plot = df_long.copy()
-            df_plot['Z_Score'] = df_plot.groupby('Taster')['Overall liking'].transform(standardize_and_scale)
-            df_plot['Product_Label'] = df_plot['Product'].apply(truncate_name)
+        #     df_plot = df_long.copy()
+        #     df_plot['Z_Score'] = df_plot.groupby('Taster')['Overall liking'].transform(standardize_and_scale)
+        #     df_plot['Product_Label'] = df_plot['Product'].apply(truncate_name)
 
-            # --- ADDED: Extract the sorted order from the ANOVA leaderboard ---
-            plot_order = adj_df['Product'].apply(truncate_name).tolist()
+        #     # --- ADDED: Extract the sorted order from the ANOVA leaderboard ---
+        #     plot_order = adj_df['Product'].apply(truncate_name).tolist()
 
-            fig_dist, ax_dist = plt.subplots(figsize=(10, 5))
+        #     fig_dist, ax_dist = plt.subplots(figsize=(10, 5))
             
-            # --- ADDED: The 'order=plot_order' parameter to both plots ---
-            sns.boxplot(data=df_plot, x='Product_Label', y='Z_Score', color='white', width=0.4, order=plot_order, ax=ax_dist)
-            sns.swarmplot(data=df_plot, x='Product_Label', y='Z_Score', hue='Product_Label', size=5, alpha=0.8, palette="husl", legend=False, order=plot_order, ax=ax_dist)
+        #     # --- ADDED: The 'order=plot_order' parameter to both plots ---
+        #     sns.boxplot(data=df_plot, x='Product_Label', y='Z_Score', color='white', width=0.4, order=plot_order, ax=ax_dist)
+        #     sns.swarmplot(data=df_plot, x='Product_Label', y='Z_Score', hue='Product_Label', size=5, alpha=0.8, palette="husl", legend=False, order=plot_order, ax=ax_dist)
             
-            ax_dist.set_ylabel("Standardized score")
-            ax_dist.set_xlabel("")
-            ax_dist.set_ylim(0.5, 9.5)
-            plt.setp(ax_dist.get_xticklabels(), rotation=45, ha='right')
-            sns.despine()
-            fig_dist.tight_layout()
-            st.pyplot(fig_dist)
+        #     ax_dist.set_ylabel("Standardized score")
+        #     ax_dist.set_xlabel("")
+        #     ax_dist.set_ylim(0.5, 9.5)
+        #     plt.setp(ax_dist.get_xticklabels(), rotation=45, ha='right')
+        #     sns.despine()
+        #     fig_dist.tight_layout()
+        #     st.pyplot(fig_dist)
 
         def render_descriptive():
             if len(attr_names) > 0:
