@@ -35,9 +35,9 @@ SURVEY_PREFIXES = {
 # USER-FACING TEXT STRINGS (EDIT THESE)
 # ==========================================
 UI_TEXT = {
-    "app_title": "Sensory data analyzer",
+    "app_title": "Hedonic Analyzer",
     "app_subtitle": "Upload raw survey data or a previously processed matrix.",
-    "err_missing_lib": "Missing required python library: statsmodels.",
+    "err_missing_lib": "Missing required Python library: statsmodels.",
     
     # Step 1: Upload
     "step1_header": "1. Data upload",
@@ -55,14 +55,14 @@ UI_TEXT = {
     
     # Step 3: Product Mapping
     "step3_header": "3. Product mapping",
-    "step3_desc": "Unique codes extracted from survey based on column selections. Upload a master key to automatically assign product names, or manually type them into the grid.",
-    "step3_upload_key": "Upload master key (CSV - optional)",
+    "step3_desc": "Upload a master key to automatically assign product names corresponding to unique codes, or manually type them into the grid.",
+    "step3_upload_key": "Upload master product name key (CSV, optional)",
     "msg_key_success": "Perfect match: successfully linked all {count} survey codes to product names.",
     "msg_key_partial": "Partial match: found {matched} matches, but {missing} survey codes are missing from key.",
     "msg_key_mismatch": "Master key mismatch: loaded {loaded} names from key, but none of them match the codes found in survey data. Please check key file.",
     "err_key_cols": "Could not identify the code and name columns in master key.",
     "step3_edit_desc": "Verify and edit product names:",
-    "step3_edit_hint": "This table is interactive. Click directly into the 'Product name' column to manually type or edit a brand name.",
+    "step3_edit_hint": "This table is interactive. Click any field in the 'Product name' column to enter or edit a brand name.",
     
     # Step 4: Analysis Execution & Errors
     "btn_run": "Run statistical analysis",
@@ -82,22 +82,22 @@ UI_TEXT = {
     
     # Metrics
     "stat_rse_label": "Residual Standard Error (RSE): {rse:.2f}",
-    "stat_rse_context": "Trained panels are typically < 1.0; standard consumer tests are 1.0 - 1.8. The RSE represents the standard deviation of the data after mathematically removing true product differences and individual taster bias. A higher RSE indicates a highly unpredictable panel.",
+    "stat_rse_context": "Trained tasting panels are typically below 1.0; standard consumer taste tests are generally 1.0 - 1.8. The RSE represents the standard deviation of the data after mathematically removing true product differences and individual taster bias. A higher RSE indicates a more unpredictable panel.",
     "stat_pval_label": "Parametric p-value (ANOVA): {pval:.4f}",
-    "stat_pval_context": "The ANOVA p-value represents the statistical probability that the observed differences in average scores are due strictly to random chance. A value below 0.05 is typically required to prove a significant difference.",
+    "stat_pval_context": "The ANOVA p-value represents the statistical probability that the observed differences in scores are due strictly to random chance. A value below 0.05 is typically required to prove a significant difference.",
     "stat_rank_pval_label": "Nonparametric p-value ({test}): {pval:.4f}",
-    "stat_rank_pval_context": "The nonparametric p-value evaluates preference rankings rather than raw scores, making it mathematically robust against panelist scale-use bias.",
+    "stat_rank_pval_context": "The nonparametric p-value evaluates preference rankings rather than raw scores, making it mathematically robust against differences in the way panelists use the rating scale (generosity/harshness).",
     
     "action_standard_title": "Detectable difference threshold: {threshold:.2f} points",
     "action_standard_gap": "<strong>{top}</strong> beat <strong>{runner}</strong> by a margin of <strong>{gap:.2f} points</strong>.",
     "action_standard_pass": "Because this exceeds the required {threshold:.2f} threshold, the difference in quality is likely meaningful.",
-    "action_standard_fail": "Because this falls short of the required {threshold:.2f} threshold, the difference between the top products is likely not meaningful.",
+    "action_standard_fail": "Because this falls short of the required {threshold:.2f} threshold, the difference between the top products is likely not statistically meaningful.",
     
     # Charts & Tables
     "chart_anova_title": "ANOVA (adjusted means)",
     "chart_rank_title": "Rank test (preference points)",
     "chart_polar_title": "Score distribution (polarization)",
-    "chart_polar_desc": "This chart visualizes panel alignment. A tight cluster indicates universal agreement. A wide, stretched spread indicates a highly polarizing product.",
+    "chart_polar_desc": "This chart visualizes panel alignment. A tight cluster indicates a high level of agreement. A widely stretched spread indicates a highly polarizing product.",
     "chart_attr_title": "Descriptive attribute summary",
     "chart_attr_desc": "Review the average scores for specific attributes below.",
     
@@ -489,14 +489,16 @@ if uploaded_file is not None:
                 
                 if stacked_comment_rows:
                     df_comments = pd.DataFrame(stacked_comment_rows)
-                    df_comments = df_comments.sort_values(by="Product").reset_index(drop=True)
+                    df_comments = df_comments.sort_values(by=["Product", "Overall Liking"], ascending=[True, False]).reset_index(drop=True)
             else:
                 # If they uploaded a processed matrix, try to extract comments if they exist
                 possible_comment_cols = [c for c in df_long.columns if 'comment' in c.lower() or 'feedback' in c.lower()]
                 if possible_comment_cols:
                     comment_col = possible_comment_cols[0]
                     df_comments = df_long[['Taster', 'Product', 'Overall liking', comment_col]].dropna(subset=[comment_col])
-                    df_comments = df_comments.rename(columns={comment_col: 'Comments'})
+                    # Rename the columns to perfectly match the export format and add the sorting logic
+                    df_comments = df_comments.rename(columns={comment_col: 'Comments', 'Overall liking': 'Overall Liking'})
+                    df_comments = df_comments.sort_values(by=["Product", "Overall Liking"], ascending=[True, False]).reset_index(drop=True)
             
             df_long['Overall liking'] = pd.to_numeric(df_long['Overall liking'], errors='coerce')
             df_long = df_long.dropna(subset=["Product", "Overall liking"])
@@ -784,7 +786,7 @@ if uploaded_file is not None:
             
             if show_simple:
                 st.subheader("Simple Metrics")
-                st.markdown("These metrics bypass complex statistical regression. **Centered Averages** mathematically adjust for tasters who score unusually high or low, re-centering them to the panel average. **Average Ranks** ignore the 1-to-9 scale entirely, looking only at the order in which each taster preferred the products (where 1.0 is a unanimous first place).")
+                st.markdown("These metrics omit complex statistical regression. **Centered averages** mathematically adjust for tasters who score unusually high or low, re-centering them to the panel average. **Average ranks** ignore the 1-to-9 scale entirely, looking only at the order in which each taster preferred the products (where 1.0 is a unanimous first place).")
                 
                 global_mean = df_long['Overall liking'].mean()
                 df_calc = df_long.copy()
@@ -834,7 +836,7 @@ if uploaded_file is not None:
                     for i, row in simple_df.iterrows():
                         ax_r.text(i, row['Average Rank'] + 0.15, f"{row['Average Rank']:.2f}", ha='center', va='top', fontweight='bold', fontsize=11, color='black')
                         
-                    ax_r.set_ylabel("Average Rank (Lower is Better)")
+                    ax_r.set_ylabel("Average Rank (lower is better)")
                     ax_r.set_xlabel("")
                     
                     max_rank = simple_df['Average Rank'].max()
@@ -936,9 +938,14 @@ if uploaded_file is not None:
             df_plot['Z_Score'] = df_plot.groupby('Taster')['Overall liking'].transform(standardize_and_scale)
             df_plot['Product_Label'] = df_plot['Product'].apply(truncate_name)
 
+            # --- ADDED: Extract the sorted order from the ANOVA leaderboard ---
+            plot_order = adj_df['Product'].apply(truncate_name).tolist()
+
             fig_dist, ax_dist = plt.subplots(figsize=(10, 5))
-            sns.boxplot(data=df_plot, x='Product_Label', y='Z_Score', color='white', width=0.4, ax=ax_dist)
-            sns.swarmplot(data=df_plot, x='Product_Label', y='Z_Score', hue='Product_Label', size=5, alpha=0.8, palette="husl", legend=False, ax=ax_dist)
+            
+            # --- ADDED: The 'order=plot_order' parameter to both plots ---
+            sns.boxplot(data=df_plot, x='Product_Label', y='Z_Score', color='white', width=0.4, order=plot_order, ax=ax_dist)
+            sns.swarmplot(data=df_plot, x='Product_Label', y='Z_Score', hue='Product_Label', size=5, alpha=0.8, palette="husl", legend=False, order=plot_order, ax=ax_dist)
             
             ax_dist.set_ylabel("Standardized score")
             ax_dist.set_xlabel("")
@@ -1018,7 +1025,7 @@ if uploaded_file is not None:
         # ----------------------------------------------------
         # DASHBOARD LAYOUT
         # ----------------------------------------------------
-        st.header("Results Dashboard")
+        st.header("Results")
         
         render_leaderboards()
         render_simple_metrics()
